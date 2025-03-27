@@ -1,159 +1,154 @@
 document.addEventListener('DOMContentLoaded', () => {
-
-//Kjører bare dokumentet etter at hele html siden har lastet inn.
-
+    const loginContainer = document.querySelector('.login-container');
+    const passwordsContainer = document.querySelector('.passwords-container');
     const accessKeyInput = document.getElementById('accessKeyInput');
     const connectBtn = document.getElementById('connectBtn');
-    const errorMessage = document.getElementById('errorMessage');
+    const searchInput = document.getElementById('searchInput');
     const passwordList = document.getElementById('passwordList');
+    const errorMessage = document.getElementById('errorMessage');
+    const copiedPopup = document.getElementById('copiedPopup');
 
-    // tar knappene og alt ovenfor/velger knappene og feltene
+    let allPasswords = [];
+
+    // Check if token exists on load
+    chrome.storage.sync.get(['cybervaultAccessToken'], (result) => {
+        if (result.cybervaultAccessToken) {
+            showPasswordsContainer();
+            fetchPasswords(result.cybervaultAccessToken);
+        } else {
+            showLoginContainer();
+        }
+    });
+
+    function showLoginContainer() {
+        loginContainer.style.display = 'block';
+        passwordsContainer.style.display = 'none';
+    }
+
+    function showPasswordsContainer() {
+        loginContainer.style.display = 'none';
+        passwordsContainer.style.display = 'block';
+    }
+
+    function showCopiedPopup() {
+        copiedPopup.style.display = 'block';
+        setTimeout(() => {
+            copiedPopup.style.display = 'none';
+        }, 1500);
+    }
+
+    function renderPasswords(passwords) {
+        passwordList.innerHTML = '';
+
+        if (passwords.length === 0) {
+            const noPasswordsMsg = document.createElement('div');
+            noPasswordsMsg.classList.add('no-passwords');
+            noPasswordsMsg.textContent = 'No passwords found';
+            passwordList.appendChild(noPasswordsMsg);
+            return;
+        }
+
+        passwords.forEach(password => {
+            const passwordItem = document.createElement('div');
+            passwordItem.classList.add('password-item');
+
+            const passwordDetails = document.createElement('div');
+            passwordDetails.classList.add('password-item-details');
+
+            const title = document.createElement('h3');
+            title.textContent = password.Name || password.Website || 'Unnamed Entry';
+
+            const websitePara = document.createElement('p');
+            websitePara.innerHTML = `<strong>Website:</strong> ${password.Website || 'No Website'}`;
+
+            const usernamePara = document.createElement('p');
+            usernamePara.innerHTML = `<strong>Username:</strong> ${password.Username || 'No Username'}`;
+
+            const actionButtons = document.createElement('div');
+            actionButtons.classList.add('action-buttons');
+
+            const copyUsernameBtn = document.createElement('button');
+            copyUsernameBtn.classList.add('copy-btn');
+            copyUsernameBtn.textContent = 'Copy Username';
+            copyUsernameBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(password.Username);
+                showCopiedPopup();
+            });
+
+            const copyPasswordBtn = document.createElement('button');
+            copyPasswordBtn.classList.add('copy-password-btn');
+            copyPasswordBtn.textContent = 'Copy Password';
+            copyPasswordBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(password.Password);
+                showCopiedPopup();
+            });
+
+            const autofillBtn = document.createElement('button');
+            autofillBtn.classList.add('autofill-btn');
+            autofillBtn.textContent = 'Autofill';
+            autofillBtn.addEventListener('click', () => {
+                chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        type: 'AUTOFILL',
+                        credentials: {
+                            username: password.Username,
+                            password: password.Password
+                        }
+                    });
+                });
+            });
+
+            passwordDetails.appendChild(title);
+            passwordDetails.appendChild(websitePara);
+            passwordDetails.appendChild(usernamePara);
+
+            actionButtons.appendChild(copyUsernameBtn);
+            actionButtons.appendChild(copyPasswordBtn);
+            actionButtons.appendChild(autofillBtn);
+
+            passwordItem.appendChild(passwordDetails);
+            passwordItem.appendChild(actionButtons);
+
+            passwordList.appendChild(passwordItem);
+        });
+    }
 
     function saveAccessToken(token) {
         chrome.storage.sync.set({ 
             'cybervaultAccessToken': token,
             'tokenSavedTimestamp': Date.now()
         }, () => {
-            // ovenfor så lagres det token og datoen
+            showPasswordsContainer();
             fetchPasswords(token);
-
-            //Deretter så laster den inn passordene
-
         });
     }
 
-    // Tar å laster inn passordene med token.
-    async function fetchPasswords(token) {
-        try {
-        
-            errorMessage.textContent = '';
-            passwordList.innerHTML = '';
+    function fetchPasswords(token) {
+        errorMessage.textContent = '';
 
-            //Sletter/rensker errorene og passord lista før den prøver 
-
-        
-            const response = await fetch('http://localhost:8765/passwords', {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            //Deretter så prøver den å gå på lokal nettsiden med get request og passordet er token
-
+        fetch('http://localhost:8765/passwords', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+        .then(response => {
             if (!response.ok) {
-                throw new Error('Invalid key or CyberVault app not running');
+                throw new Error('Failed to fetch passwords');
             }
-
-            // Hvis du får en error så kommer dette opp
-
-            const passwords = await response.json();
-            
-            if (passwords.length === 0) {
-                errorMessage.textContent = 'No passwords found';
-                return;
-            }
-
-            //gjør om fa api til json slik at javascript kan bruke innholdet og hvis det ikke finnes 
-
-            passwords.forEach(password => {
-                const passwordItem = document.createElement('div');
-                passwordItem.classList.add('password-item');
-
-                // Lager div og passord der den viser det. Gjør dette for alle passordene.
-                const displayName = 
-                    password.Name || 
-                    password.Website || 
-                    password.Username || 
-                    password.Email || 
-                    'Unnamed Entry';
-                
-                const displayWebsite = password.Website || 'No Website';
-                const displayUsername = password.Username || 'No Username';
-
-                //Her setter den navnet til passordet/nettsiden og hvis det er tomt så står det no website/no username/unnamed entry
-
-                
-                const title = document.createElement('h3');
-                title.textContent = displayName;
-
-                //Her er tittel for passordet som er lagret
-
-                const websitePara = document.createElement('p');
-                const websiteStrong = document.createElement('strong');
-                websiteStrong.textContent = 'Website: ';
-                const websiteSpan = document.createElement('span');
-                websiteSpan.textContent = displayWebsite;
-                websitePara.appendChild(websiteStrong);
-                websitePara.appendChild(websiteSpan);
-
-                //her gjør den om website til paragraf størrelse og gjør den bold og viser website navnet.
-
-                const usernamePara = document.createElement('p');
-                const usernameStrong = document.createElement('strong');
-                usernameStrong.textContent = 'Username: ';
-                const usernameSpan = document.createElement('span');
-                usernameSpan.textContent = displayUsername;
-                usernamePara.appendChild(usernameStrong);
-                usernamePara.appendChild(usernameSpan);
-
-                //her gjør den om website til paragraf størrelse og gjør den bold og viser username.
-
-                const copyUsernameBtn = document.createElement('button');
-                copyUsernameBtn.classList.add('copy-btn', 'copy-username');
-                copyUsernameBtn.textContent = 'Copy Username';
-                copyUsernameBtn.addEventListener('click', () => {
-                    navigator.clipboard.writeText(password.Username || '')
-                        .then(() => alert('Username copied!'))
-                        .catch(err => console.error('Failed to copy username', err));
-                });
-
-                //Her kan du kopiere username og hvis du kopierer så kommer det opp en alert som sier kopiert! 
-                // og hvis du får error melding så får du det i console
-
-                const copyPasswordBtn = document.createElement('button');
-                copyPasswordBtn.classList.add('copy-btn', 'copy-password');
-                copyPasswordBtn.textContent = 'Copy Password';
-                copyPasswordBtn.addEventListener('click', () => {
-                    navigator.clipboard.writeText(password.Password || '')
-                        .then(() => alert('Password copied!'))
-                        .catch(err => console.error('Failed to copy password', err));
-                });
-
-                //Her kan du kopiere password og hvis du kopierer så kommer det opp en alert som sier kopiert! 
-                // og hvis du får error melding så får du det i console
-
-                passwordItem.appendChild(title);
-                passwordItem.appendChild(websitePara);
-                passwordItem.appendChild(usernamePara);
-                passwordItem.appendChild(copyUsernameBtn);
-                passwordItem.appendChild(copyPasswordBtn);
-
-                // Legger til alle elementene til passord entry div
-
-                passwordList.appendChild(passwordItem);
-
-                //Så legger den alt til hovedsiden
-
-            });
-        } catch (error) {
-            console.error('Fetch passwords error or CyberVault app not running:', error);
+            return response.json();
+        })
+        .then(passwords => {
+            allPasswords = passwords;
+            renderPasswords(allPasswords);
+        })
+        .catch(error => {
             errorMessage.textContent = error.message;
-        }
-
-        //Hvis feil så får du feilmelding så popper det opp 
+            showLoginContainer();
+        });
     }
 
-   
-    chrome.storage.sync.get(['cybervaultAccessToken', 'tokenSavedTimestamp'], (result) => {
-        if (result.cybervaultAccessToken) {
-            accessKeyInput.value = result.cybervaultAccessToken;
-            fetchPasswords(result.cybervaultAccessToken);
-        }
-    });
-
-     // Hvis du har skrevet inn token før så lagres den og lar det stå i input.
-
+    // Connect Button Event Listener
     connectBtn.addEventListener('click', () => {
         const accessToken = accessKeyInput.value.trim();
         
@@ -162,10 +157,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Tar token og hvis det ikke er en token skrevet så står det en error melding.
-
         saveAccessToken(accessToken);
+    });
 
-        //Så lagres token 
+    // Search functionality
+    searchInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const filteredPasswords = allPasswords.filter(password => 
+            password.Name?.toLowerCase().includes(searchTerm) ||
+            password.Website?.toLowerCase().includes(searchTerm) ||
+            password.Username?.toLowerCase().includes(searchTerm)
+        );
+        renderPasswords(filteredPasswords);
     });
 });
