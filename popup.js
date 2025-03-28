@@ -76,26 +76,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const copyPasswordBtn = document.createElement('button');
-            copyPasswordBtn.classList.add('copy-password-btn');
+            copyPasswordBtn.classList.add('copy-btn');  // Changed from 'copy-password-btn' to 'copy-btn'
             copyPasswordBtn.textContent = 'Copy Password';
             copyPasswordBtn.addEventListener('click', () => {
                 navigator.clipboard.writeText(password.Password);
                 showCopiedPopup();
-            });
-
-            const autofillBtn = document.createElement('button');
-            autofillBtn.classList.add('autofill-btn');
-            autofillBtn.textContent = 'Autofill';
-            autofillBtn.addEventListener('click', () => {
-                chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-                    chrome.tabs.sendMessage(tabs[0].id, {
-                        type: 'AUTOFILL',
-                        credentials: {
-                            username: password.Username,
-                            password: password.Password
-                        }
-                    });
-                });
             });
 
             passwordDetails.appendChild(title);
@@ -104,7 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             actionButtons.appendChild(copyUsernameBtn);
             actionButtons.appendChild(copyPasswordBtn);
-            actionButtons.appendChild(autofillBtn);
 
             passwordItem.appendChild(passwordDetails);
             passwordItem.appendChild(actionButtons);
