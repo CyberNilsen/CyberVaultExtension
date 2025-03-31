@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allPasswords = [];
 
-    // Check if token exists on load
     chrome.storage.sync.get(['cybervaultAccessToken'], (result) => {
         if (result.cybervaultAccessToken) {
             showPasswordsContainer();
@@ -76,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const copyPasswordBtn = document.createElement('button');
-            copyPasswordBtn.classList.add('copy-btn');  // Changed from 'copy-password-btn' to 'copy-btn'
+            copyPasswordBtn.classList.add('copy-btn');  
             copyPasswordBtn.textContent = 'Copy Password';
             copyPasswordBtn.addEventListener('click', () => {
                 navigator.clipboard.writeText(password.Password);
@@ -132,7 +131,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Connect Button Event Listener
     connectBtn.addEventListener('click', () => {
         const accessToken = accessKeyInput.value.trim();
         
@@ -144,7 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
         saveAccessToken(accessToken);
     });
 
-    // Search functionality
     searchInput.addEventListener('input', (e) => {
         const searchTerm = e.target.value.toLowerCase();
         const filteredPasswords = allPasswords.filter(password => 

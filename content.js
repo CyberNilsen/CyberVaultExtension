@@ -59,7 +59,6 @@ class CyberVaultAutofill {
             }
         }, true);
 
-        // Close popup when clicking outside
         document.addEventListener('click', (e) => {
             const popup = document.getElementById('cybervault-autofill-popup');
             if (popup && !popup.contains(e.target) && 
@@ -78,7 +77,6 @@ class CyberVaultAutofill {
     }
 
     showAutofillOptions(field) {
-        // Request saved passwords from background script
         chrome.runtime.sendMessage(
             { type: 'GET_SAVED_PASSWORDS', url: window.location.href }, 
             (response) => {
@@ -91,14 +89,12 @@ class CyberVaultAutofill {
 
     renderPopup(passwords, field) {
         const popup = document.getElementById('cybervault-autofill-popup');
-        popup.innerHTML = ''; // Clear previous content
+        popup.innerHTML = ''; 
 
-        // Position the popup
         const rect = field.getBoundingClientRect();
         popup.style.top = `${rect.bottom + window.scrollY + 5}px`;
         popup.style.left = `${rect.left + window.scrollX}px`;
 
-        // Create popup items
         passwords.forEach(password => {
             const item = document.createElement('div');
             item.className = 'cybervault-popup-item';
@@ -116,20 +112,16 @@ class CyberVaultAutofill {
             popup.appendChild(item);
         });
 
-        // Show popup
         popup.style.display = 'block';
     }
 
     autofill(credentials) {
-        // Find the current form
         const form = this.findParentForm(this.currentField);
         
         if (form) {
-            // Find username and password fields
             const usernameField = this.findUsernameField(form);
             const passwordField = this.findPasswordField(form);
 
-            // Autofill fields
             if (usernameField) {
                 usernameField.value = credentials.Username;
                 this.triggerInputEvents(usernameField);
@@ -141,7 +133,6 @@ class CyberVaultAutofill {
             }
         }
 
-        // Hide popup
         document.getElementById('cybervault-autofill-popup').style.display = 'none';
     }
 
@@ -178,5 +169,4 @@ class CyberVaultAutofill {
     }
 }
 
-// Initialize the autofill manager
 new CyberVaultAutofill();
