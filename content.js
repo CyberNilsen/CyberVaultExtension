@@ -11,7 +11,7 @@ class CyberVaultAutofill {
             #cybervault-autofill-popup {
                 position: absolute;
                 background: white;
-                border: 1px solid #853E3E;
+                border: 1px solid #403E43;
                 border-radius: 8px;
                 box-shadow: 0 4px 6px rgba(0,0,0,0.1);
                 z-index: 10000;
@@ -35,7 +35,7 @@ class CyberVaultAutofill {
                 flex-grow: 1;
             }
             .cybervault-popup-item-details strong {
-                color: #853E3E;
+                color: #403E43;
                 display: block;
             }
             .cybervault-popup-item-details small {
