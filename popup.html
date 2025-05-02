@@ -104,18 +104,26 @@
             padding: 12px;
             margin-bottom: 8px;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
             justify-content: space-between;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
-        .password-item-details {
-            flex-grow: 1;
+
+        .password-item h3, 
+        .password-item p {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
         }
+
         .password-item h3 {
             margin-bottom: 4px;
             color: #5E81AC;
             font-size: 14px;
         }
+
         .password-item p {
             color: #C8C8C9;
             font-size: 12px;
@@ -124,7 +132,9 @@
         .action-buttons {
             display: flex;
             gap: 4px;
+            flex-shrink: 0;
         }
+
         .copy-btn, .copy-password-btn {
             background-color: #5E81AC;
             color: white;
@@ -133,6 +143,7 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
+            
         }
         #errorMessage {
             color: #ea384c;
