@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // DOM elements
+
     const loginContainer = document.querySelector('.login-container');
     const passwordsContainer = document.querySelector('.passwords-container');
     const accessKeyInput = document.getElementById('accessKeyInput');
@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let allPasswords = [];
     let isLoading = false;
 
-    // Initialize the extension
     init();
 
     async function init() {
@@ -159,7 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 },
-                // Adding a timeout to prevent waiting too long
                 signal: AbortSignal.timeout(5000)
             });
 
@@ -171,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
             allPasswords = passwords;
             renderPasswords(allPasswords);
         } catch (error) {
-            // Handle network errors or timeouts
             if (error.name === 'AbortError') {
                 displayError('Request timed out. Please try again.');
             } else if (error.message === 'Authentication failed') {
@@ -179,6 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await clearAccessToken();
                 showLoginContainer();
             } else {
+                showLoginContainer();
                 displayError('Failed to fetch passwords. Please try again.');
                 console.error('Error fetching passwords:', error);
             }
@@ -194,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Event listeners
     connectBtn.addEventListener('click', async () => {
         const accessToken = accessKeyInput.value.trim();
         
@@ -219,7 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Allow connecting with Enter key
     accessKeyInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             connectBtn.click();
@@ -236,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPasswords(filteredPasswords);
     }, 300));
 
-    // Debounce function to prevent excessive filtering on search input
+
     function debounce(func, wait) {
         let timeout;
         return function(...args) {

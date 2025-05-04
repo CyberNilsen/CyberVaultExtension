@@ -1,8 +1,7 @@
-// Cache mechanism to improve performance
 let passwordsCache = {
     data: null,
     timestamp: 0,
-    expiryTime: 5 * 60 * 1000 // 5 minutes in milliseconds
+    expiryTime: 5 * 60 * 1000
 };
 
 function getAccessToken() {
@@ -19,7 +18,7 @@ function getAccessToken() {
 
 async function fetchPasswords(forceRefresh = false) {
     try {
-        // Check if we have a valid cache
+
         const now = Date.now();
         if (!forceRefresh && 
             passwordsCache.data && 
@@ -29,7 +28,6 @@ async function fetchPasswords(forceRefresh = false) {
 
         const token = await getAccessToken();
         
-        // Add timeout to prevent hanging
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
         
@@ -49,7 +47,6 @@ async function fetchPasswords(forceRefresh = false) {
         
         const passwords = await response.json();
         
-        // Update cache
         passwordsCache.data = passwords;
         passwordsCache.timestamp = now;
         
@@ -57,22 +54,19 @@ async function fetchPasswords(forceRefresh = false) {
     } catch (error) {
         console.error('Error fetching passwords:', error);
         
-        // Clear cache on error
         passwordsCache.data = null;
         passwordsCache.timestamp = 0;
         
-        // Re-throw the error for handling elsewhere
         throw error;
     }
 }
 
-// Listen for messages from popup or content scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'GET_SAVED_PASSWORDS') {
         fetchPasswords(request.forceRefresh)
             .then(passwords => {
                 if (request.url) {
-                    // Filter passwords for the current domain
+
                     try {
                         const currentDomain = new URL(request.url).hostname;
                         const matchedPasswords = passwords.filter(password => 
@@ -86,7 +80,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         sendResponse({ success: false, error: 'Invalid URL' });
                     }
                 } else {
-                    // Return all passwords
+
                     sendResponse({ success: true, passwords });
                 }
             })
@@ -95,7 +89,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ success: false, error: error.message });
             });
         
-        return true; // Keep the message channel open for the async response
+        return true;
     }
     
     if (request.type === 'CLEAR_CACHE') {
@@ -106,7 +100,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-// Clear cache when token is changed
 chrome.storage.onChanged.addListener((changes) => {
     if (changes.cybervaultAccessToken) {
         passwordsCache.data = null;
@@ -114,12 +107,10 @@ chrome.storage.onChanged.addListener((changes) => {
     }
 });
 
-// Keep the service worker alive for better performance
 chrome.runtime.onStartup.addListener(() => {
     console.log('CyberVault extension started');
 });
 
-// Handle installation
 chrome.runtime.onInstalled.addListener(() => {
     console.log('CyberVault extension installed');
 });
