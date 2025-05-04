@@ -1,23 +1,42 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // DOM elements
     const loginContainer = document.querySelector('.login-container');
     const passwordsContainer = document.querySelector('.passwords-container');
     const accessKeyInput = document.getElementById('accessKeyInput');
     const connectBtn = document.getElementById('connectBtn');
     const searchInput = document.getElementById('searchInput');
     const passwordList = document.getElementById('passwordList');
-    const errorMessage = document.getElementById('errorMessage');
+    const errorMessageElements = document.querySelectorAll('#errorMessage');
     const copiedPopup = document.getElementById('copiedPopup');
 
     let allPasswords = [];
+    let isLoading = false;
 
-    chrome.storage.sync.get(['cybervaultAccessToken'], (result) => {
-        if (result.cybervaultAccessToken) {
-            showPasswordsContainer();
-            fetchPasswords(result.cybervaultAccessToken);
-        } else {
+    // Initialize the extension
+    init();
+
+    async function init() {
+        try {
+            const token = await getAccessToken();
+            if (token) {
+                showPasswordsContainer();
+                fetchPasswords(token);
+            } else {
+                showLoginContainer();
+            }
+        } catch (error) {
             showLoginContainer();
+            displayError('Failed to initialize extension');
         }
-    });
+    }
+
+    function getAccessToken() {
+        return new Promise((resolve) => {
+            chrome.storage.sync.get(['cybervaultAccessToken'], (result) => {
+                resolve(result.cybervaultAccessToken || null);
+            });
+        });
+    }
 
     function showLoginContainer() {
         loginContainer.style.display = 'block';
@@ -30,13 +49,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showCopiedPopup() {
-        copiedPopup.style.display = 'block';
+        copiedPopup.classList.add('show');
         setTimeout(() => {
-            copiedPopup.style.display = 'none';
+            copiedPopup.classList.remove('show');
         }, 1500);
     }
 
+    function displayError(message) {
+        errorMessageElements.forEach(el => {
+            el.textContent = message;
+        });
+    }
+
+    function clearError() {
+        errorMessageElements.forEach(el => {
+            el.textContent = '';
+        });
+    }
+
+    function showLoading() {
+        isLoading = true;
+        passwordList.innerHTML = `
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading passwords...</p>
+            </div>
+        `;
+    }
+
     function renderPasswords(passwords) {
+        isLoading = false;
         passwordList.innerHTML = '';
 
         if (passwords.length === 0) {
@@ -70,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
             copyUsernameBtn.classList.add('copy-btn');
             copyUsernameBtn.textContent = 'Copy Username';
             copyUsernameBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(password.Username);
+                navigator.clipboard.writeText(password.Username || '');
                 showCopiedPopup();
             });
 
@@ -78,7 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
             copyPasswordBtn.classList.add('copy-btn');  
             copyPasswordBtn.textContent = 'Copy Password';
             copyPasswordBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(password.Password);
+                navigator.clipboard.writeText(password.Password || '');
                 showCopiedPopup();
             });
 
@@ -97,58 +139,111 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveAccessToken(token) {
-        chrome.storage.sync.set({ 
-            'cybervaultAccessToken': token,
-            'tokenSavedTimestamp': Date.now()
-        }, () => {
-            showPasswordsContainer();
-            fetchPasswords(token);
+        return new Promise((resolve) => {
+            chrome.storage.sync.set({ 
+                'cybervaultAccessToken': token,
+                'tokenSavedTimestamp': Date.now()
+            }, () => {
+                resolve();
+            });
         });
     }
 
-    function fetchPasswords(token) {
-        errorMessage.textContent = '';
+    async function fetchPasswords(token) {
+        clearError();
+        showLoading();
 
-        fetch('http://localhost:8765/passwords', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        })
-        .then(response => {
+        try {
+            const response = await fetch('http://localhost:8765/passwords', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                // Adding a timeout to prevent waiting too long
+                signal: AbortSignal.timeout(5000)
+            });
+
             if (!response.ok) {
-                throw new Error('Failed to fetch passwords');
+                throw new Error('Authentication failed');
             }
-            return response.json();
-        })
-        .then(passwords => {
+
+            const passwords = await response.json();
             allPasswords = passwords;
             renderPasswords(allPasswords);
-        })
-        .catch(error => {
-            errorMessage.textContent = error.message;
-            showLoginContainer();
+        } catch (error) {
+            // Handle network errors or timeouts
+            if (error.name === 'AbortError') {
+                displayError('Request timed out. Please try again.');
+            } else if (error.message === 'Authentication failed') {
+                displayError('Authentication failed. Please login again.');
+                await clearAccessToken();
+                showLoginContainer();
+            } else {
+                displayError('Failed to fetch passwords. Please try again.');
+                console.error('Error fetching passwords:', error);
+            }
+            passwordList.innerHTML = '';
+        }
+    }
+
+    function clearAccessToken() {
+        return new Promise((resolve) => {
+            chrome.storage.sync.remove(['cybervaultAccessToken', 'tokenSavedTimestamp'], () => {
+                resolve();
+            });
         });
     }
 
-    connectBtn.addEventListener('click', () => {
+    // Event listeners
+    connectBtn.addEventListener('click', async () => {
         const accessToken = accessKeyInput.value.trim();
         
         if (!accessToken) {
-            errorMessage.textContent = 'Please enter the Web Extension Key';
+            displayError('Please enter the Web Extension Key');
             return;
         }
 
-        saveAccessToken(accessToken);
+        clearError();
+        connectBtn.textContent = 'Connecting...';
+        connectBtn.disabled = true;
+
+        try {
+            await saveAccessToken(accessToken);
+            showPasswordsContainer();
+            await fetchPasswords(accessToken);
+        } catch (error) {
+            displayError('Failed to connect. Please try again.');
+        } finally {
+            connectBtn.textContent = 'Connect to CyberVault';
+            connectBtn.disabled = false;
+        }
     });
 
-    searchInput.addEventListener('input', (e) => {
+    // Allow connecting with Enter key
+    accessKeyInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            connectBtn.click();
+        }
+    });
+
+    searchInput.addEventListener('input', debounce((e) => {
         const searchTerm = e.target.value.toLowerCase();
         const filteredPasswords = allPasswords.filter(password => 
-            password.Name?.toLowerCase().includes(searchTerm) ||
-            password.Website?.toLowerCase().includes(searchTerm) ||
-            password.Username?.toLowerCase().includes(searchTerm)
+            (password.Name?.toLowerCase().includes(searchTerm)) ||
+            (password.Website?.toLowerCase().includes(searchTerm)) ||
+            (password.Username?.toLowerCase().includes(searchTerm))
         );
         renderPasswords(filteredPasswords);
-    });
+    }, 300));
+
+    // Debounce function to prevent excessive filtering on search input
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                func.apply(this, args);
+            }, wait);
+        };
+    }
 });
