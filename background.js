@@ -66,7 +66,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         fetchPasswords(request.forceRefresh)
             .then(passwords => {
                 if (request.url) {
-
                     try {
                         const currentDomain = new URL(request.url).hostname;
                         const matchedPasswords = passwords.filter(password => 
@@ -80,7 +79,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         sendResponse({ success: false, error: 'Invalid URL' });
                     }
                 } else {
-
                     sendResponse({ success: true, passwords });
                 }
             })
