@@ -16,9 +16,38 @@ function getAccessToken() {
     });
 }
 
-async function fetchPasswords(forceRefresh = false) {
+async function validateToken(token) {
     try {
 
+        let response;
+        try {
+            response = await fetch('http://localhost:8765/validate', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                signal: AbortSignal.timeout(2000)
+            });
+        } catch (error) {
+            
+            response = await fetch('http://localhost:8766/validate', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                signal: AbortSignal.timeout(2000)
+            });
+        }
+        
+        return response.ok;
+    } catch (error) {
+        console.error("Token validation error:", error);
+        return false;
+    }
+}
+
+async function fetchPasswords(forceRefresh = false) {
+    try {
         const now = Date.now();
         if (!forceRefresh && 
             passwordsCache.data && 
@@ -28,16 +57,40 @@ async function fetchPasswords(forceRefresh = false) {
 
         const token = await getAccessToken();
         
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const isTokenValid = await validateToken(token);
+        if (!isTokenValid) {
+
+            await clearStoredToken();
+            passwordsCache.data = null;
+            passwordsCache.timestamp = 0;
+            throw new Error('Invalid access token');
+        }
         
-        const response = await fetch('http://localhost:8765/passwords', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            },
-            signal: controller.signal
-        });
+        let response;
+        let controller = new AbortController();
+        let timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        try {
+            response = await fetch('http://localhost:8765/passwords', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                signal: controller.signal
+            });
+        } catch (error) {
+
+            controller = new AbortController();
+            timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            response = await fetch('http://localhost:8766/passwords', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                signal: controller.signal
+            });
+        }
         
         clearTimeout(timeoutId);
         
@@ -60,6 +113,32 @@ async function fetchPasswords(forceRefresh = false) {
         throw error;
     }
 }
+
+function clearStoredToken() {
+    return new Promise((resolve) => {
+        chrome.storage.sync.remove(['cybervaultAccessToken', 'tokenSavedTimestamp'], () => {
+            resolve();
+        });
+    });
+}
+
+async function checkTokenValidity() {
+    try {
+        const token = await getAccessToken();
+        const isValid = await validateToken(token);
+        
+        if (!isValid) {
+            console.log('Token is no longer valid, clearing cache and stored token');
+            await clearStoredToken();
+            passwordsCache.data = null;
+            passwordsCache.timestamp = 0;
+        }
+    } catch (error) {
+        console.log('No token stored or error checking validity');
+    }
+}
+
+setInterval(checkTokenValidity, 3000);
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'GET_SAVED_PASSWORDS') {
@@ -96,6 +175,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: true });
         return false;
     }
+    
+    if (request.type === 'VALIDATE_TOKEN') {
+        getAccessToken()
+            .then(token => validateToken(token))
+            .then(isValid => {
+                if (!isValid) {
+                    clearStoredToken();
+                }
+                sendResponse({ success: true, valid: isValid });
+            })
+            .catch(error => {
+                sendResponse({ success: false, error: error.message });
+            });
+        return true;
+    }
 });
 
 chrome.storage.onChanged.addListener((changes) => {
@@ -107,9 +201,9 @@ chrome.storage.onChanged.addListener((changes) => {
 
 chrome.runtime.onStartup.addListener(() => {
     console.log('CyberVault extension started');
+    checkTokenValidity();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log('CyberVault extension installed');
 });
-

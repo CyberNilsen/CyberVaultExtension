@@ -18,8 +18,16 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const token = await getAccessToken();
             if (token) {
-                showPasswordsContainer();
-                fetchPasswords(token);
+                
+                const isValid = await validateToken(token);
+                if (isValid) {
+                    showPasswordsContainer();
+                    fetchPasswords(token);
+                } else {
+
+                    await clearAccessToken();
+                    showLoginContainer();
+                }
             } else {
                 showLoginContainer();
             }
@@ -35,6 +43,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 resolve(result.cybervaultAccessToken || null);
             });
         });
+    }
+    
+    async function validateToken(token) {
+        try {
+
+            let response;
+            try {
+                response = await fetch('http://localhost:8765/validate', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    signal: AbortSignal.timeout(2000)
+                });
+            } catch (error) {
+
+                response = await fetch('http://localhost:8766/validate', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    signal: AbortSignal.timeout(2000)
+                });
+            }
+            
+            return response.ok;
+        } catch (error) {
+            console.error("Token validation error:", error);
+            return false;
+        }
     }
 
     function showLoginContainer() {
@@ -153,13 +191,26 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoading();
 
         try {
-            const response = await fetch('http://localhost:8765/passwords', {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                signal: AbortSignal.timeout(5000)
-            });
+
+            let response;
+            try {
+                response = await fetch('http://localhost:8765/passwords', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    signal: AbortSignal.timeout(5000)
+                });
+
+            } catch (error) {
+                response = await fetch('http://localhost:8766/passwords', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    signal: AbortSignal.timeout(5000)
+                });
+            }
 
             if (!response.ok) {
                 throw new Error('Authentication failed');
@@ -205,11 +256,17 @@ document.addEventListener('DOMContentLoaded', () => {
         connectBtn.disabled = true;
 
         try {
+
+            const isValid = await validateToken(accessToken);
+            if (!isValid) {
+                throw new Error('Invalid access token');
+            }
+            
             await saveAccessToken(accessToken);
             showPasswordsContainer();
             await fetchPasswords(accessToken);
         } catch (error) {
-            displayError('Failed to connect. Please try again.');
+            displayError('Failed to connect. Please make sure CyberVault is running and the key is correct.');
         } finally {
             connectBtn.textContent = 'Connect to CyberVault';
             connectBtn.disabled = false;
