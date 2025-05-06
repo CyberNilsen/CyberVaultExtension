@@ -161,21 +161,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             try {
                                 const passwordUrlObj = new URL(passwordUrl);
                                 const passwordDomain = passwordUrlObj.hostname.toLowerCase();
-                                const passwordPath = passwordUrlObj.pathname.toLowerCase();
                                 
                                 const domainMatch = 
                                     passwordDomain === currentDomain || 
                                     currentDomain.endsWith('.' + passwordDomain) ||
                                     passwordDomain.endsWith('.' + currentDomain);
                                 
-                                const pathMatch = 
-                                    currentPath === passwordPath ||
-                                    (currentPath.length > 1 && passwordPath.length > 1 && 
-                                     (currentPath.includes(passwordPath) || passwordPath.includes(currentPath)));
-                                
-                                return domainMatch && (pathMatch || passwordPath === '/' || currentPath === '/');
+                                return domainMatch;
                             } catch {
-                                
+
                                 return currentDomain.includes(password.Website.toLowerCase()) || 
                                        password.Website.toLowerCase().includes(currentDomain);
                             }
