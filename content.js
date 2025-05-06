@@ -237,7 +237,35 @@ class CyberVaultAutofill {
                     this.renderPopup(response.passwords, field);
                 } else {
 
-                    console.log('No saved passwords found for this site');
+                    const currentUrl = window.location.href;
+                    const normalizedCurrentUrl = this.normalizeUrl(currentUrl);
+                    
+                    chrome.runtime.sendMessage(
+                        { type: 'GET_SAVED_PASSWORDS' }, 
+                        (fullResponse) => {
+                            if (fullResponse && fullResponse.passwords) {
+
+                                const matches = fullResponse.passwords.filter(password => {
+                                    if (!password.Website) return false;
+                                    
+                                    const normalizedSavedUrl = this.normalizeUrl(password.Website);
+                                    const currentDomain = new URL(currentUrl).hostname;
+                                    const savedDomain = this.extractDomainFromUrl(password.Website);
+                                    
+                                    return currentDomain.includes(savedDomain) || 
+                                           savedDomain.includes(currentDomain) ||
+                                           normalizedCurrentUrl.includes(normalizedSavedUrl) ||
+                                           normalizedSavedUrl.includes(normalizedCurrentUrl);
+                                });
+                                
+                                if (matches.length) {
+                                    this.renderPopup(matches, field);
+                                } else {
+                                    console.log('No saved passwords found for this site');
+                                }
+                            }
+                        }
+                    );
                 }
             }
         );
@@ -307,11 +335,30 @@ class CyberVaultAutofill {
     
     extractDomainFromUrl(url) {
         try {
-            if (!url) return null;
-            const hostname = new URL(url).hostname;
-            return hostname.replace(/^www\./, '');
+            if (!url) return '';
+
+            if (!url.startsWith('http') && !url.includes('://')) {
+                url = 'https://' + url;
+            }
+            const urlObj = new URL(url);
+            const hostname = urlObj.hostname.toLowerCase();
+            
+            const parts = hostname.split('.');
+
+            if (parts.length > 2) {
+
+                const commonTLDs = ['co.uk', 'com.au', 'co.jp', 'org.uk', 'net.au'];
+
+                const lastTwoParts = parts.slice(-2).join('.');
+                if (commonTLDs.includes(lastTwoParts)) {
+                    return `${parts[parts.length-3]}.${lastTwoParts}`;
+                }
+
+                return parts.slice(-2).join('.');
+            }
+            return hostname;
         } catch (e) {
-            return url;
+            return url.toLowerCase();
         }
     }
 
@@ -333,6 +380,48 @@ class CyberVaultAutofill {
         
         if (success) {
             this.showAutofillSuccess();
+        } else {
+
+            if (this.currentField) {
+                if (this.currentField.type === 'password') {
+
+                    this.currentField.value = credentials.Password;
+                    this.triggerInputEvents(this.currentField);
+                    
+                    const possibleContainer = this.currentField.closest('div, form, section');
+                    if (possibleContainer) {
+                        const inputs = Array.from(possibleContainer.querySelectorAll('input'));
+                        const currentIndex = inputs.indexOf(this.currentField);
+                        
+                        if (currentIndex > 0) {
+                            for (let i = 0; i < currentIndex; i++) {
+                                if (this.isLikelyUsernameField(inputs[i])) {
+                                    inputs[i].value = credentials.Username;
+                                    this.triggerInputEvents(inputs[i]);
+                                    success = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else {
+
+                    this.currentField.value = credentials.Username;
+                    this.triggerInputEvents(this.currentField);
+                    
+                    const possibleContainer = this.currentField.closest('div, form, section');
+                    if (possibleContainer) {
+                        const passwordFields = Array.from(possibleContainer.querySelectorAll('input[type="password"]'));
+                        if (passwordFields.length > 0) {
+                            passwordFields[0].value = credentials.Password;
+                            this.triggerInputEvents(passwordFields[0]);
+                            success = true;
+                        }
+                    }
+                }
+                
+                this.showAutofillSuccess();
+            }
         }
         
         document.getElementById('cybervault-autofill-popup').style.display = 'none';
@@ -411,7 +500,7 @@ class CyberVaultAutofill {
         
         if (currentField.type === 'password') {
             passwordField = currentField;
-            // Look for username field before this one
+
             for (let i = currentIndex - 1; i >= 0; i--) {
                 if (this.isLikelyUsernameField(inputs[i])) {
                     usernameField = inputs[i];
@@ -479,12 +568,11 @@ class CyberVaultAutofill {
         }
         
         const formLikeSelectors = [
-            '.login-form', 
-            '.signin-form', 
-            '.form', 
-            '[role="form"]',
-            '.login',
-            '.signin'
+            '.login-form', '.signin-form', '.form', '[role="form"]',
+            '.login', '.signin', '.signup', '.sign-up', '.authentication',
+            '.auth-form', '.account-form', '[data-form]', '[data-login]',
+            '.login-container', '.auth-container', '.login-box', '.auth-box',
+            '.input-container', '.credential-form', '.credentials'
         ];
         
         for (const selector of formLikeSelectors) {
@@ -492,10 +580,21 @@ class CyberVaultAutofill {
             if (formLike) return formLike;
         }
         
-        const container = field.closest('div, section, main, article');
-        if (container) {
-            const hasUsernameField = container.querySelector('input[type="email"], input[type="text"]');
-            const hasPasswordField = container.querySelector('input[type="password"]');
+        const containers = [
+            field.closest('div'), 
+            field.closest('section'), 
+            field.closest('main'), 
+            field.closest('article'),
+            field.closest('[class*="login"]'),
+            field.closest('[class*="auth"]'),
+            field.closest('[class*="account"]')
+        ].filter(Boolean);
+        
+        for (const container of containers) {
+            if (!container) continue;
+            
+            const hasUsernameField = !!container.querySelector('input[type="email"], input[type="text"]');
+            const hasPasswordField = !!container.querySelector('input[type="password"]');
             
             if (hasUsernameField && hasPasswordField) {
                 return container;
@@ -503,6 +602,31 @@ class CyberVaultAutofill {
         }
         
         return null;
+    }
+
+    normalizeUrl(url) {
+        try {
+            if (!url) return '';
+            
+            if (!url.startsWith('http') && !url.includes('://')) {
+                url = 'https://' + url;
+            }
+            
+            const urlObj = new URL(url);
+            
+            let domain = urlObj.hostname.toLowerCase();
+            
+            let path = urlObj.pathname.toLowerCase();
+            if (path === '/') path = '';
+            
+            if (path.endsWith('/')) {
+                path = path.slice(0, -1);
+            }
+            
+            return domain + path;
+        } catch (e) {
+            return url.toLowerCase();
+        }
     }
 
     findAllUsernameFields(form) {
@@ -584,12 +708,18 @@ class CyberVaultAutofill {
         const id = (field.id || '').toLowerCase();
         const placeholder = (field.placeholder || '').toLowerCase();
         const type = field.type.toLowerCase();
+        const className = (field.className || '').toLowerCase();
+        const ariaLabel = (field.getAttribute('aria-label') || '').toLowerCase();
+        
+        const usernameTerms = ['user', 'username', 'email', 'login', 'account', 'id', 'identifier', 'name', 'userid'];
         
         if (type === 'email') return true;
-        if (['user', 'username', 'email', 'login', 'account'].some(term => 
-            name.includes(term) || id.includes(term) || placeholder.includes(term)
-        )) {
-            return true;
+        
+        for (const term of usernameTerms) {
+            if (name.includes(term) || id.includes(term) || placeholder.includes(term) || 
+                className.includes(term) || ariaLabel.includes(term)) {
+                return true;
+            }
         }
         
         return false;
@@ -644,26 +774,34 @@ class CyberVaultAutofill {
     triggerInputEvents(element) {
         if (!element) return;
         
+        element.value = element.value;
+        
         const events = [
             new Event('focus', { bubbles: true }),
             new Event('input', { bubbles: true }),
-            new KeyboardEvent('keydown', { bubbles: true }),
-            new KeyboardEvent('keypress', { bubbles: true }),
-            new KeyboardEvent('keyup', { bubbles: true }),
-            new Event('change', { bubbles: true }),
-            new Event('blur', { bubbles: true })
+            new KeyboardEvent('keydown', { key: 'a', bubbles: true }),
+            new KeyboardEvent('keypress', { key: 'a', bubbles: true }),
+            new KeyboardEvent('keyup', { key: 'a', bubbles: true }),
+            new Event('change', { bubbles: true })
         ];
         
-        const dispatchEventsWithDelay = async () => {
-            for (const event of events) {
+        events.forEach(event => {
+            setTimeout(() => {
                 element.dispatchEvent(event);
-                await new Promise(resolve => setTimeout(resolve, 10));
-            }
-        };
+            }, 10);
+        });
         
-        dispatchEventsWithDelay();
-        
-        this.triggerFrameworkUpdates(element);
+        try {
+            
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype, 'value'
+            ).set;
+            
+            nativeInputValueSetter.call(element, element.value);
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+        } catch (e) {
+            console.log('Failed to trigger native setter:', e);
+        }
     }
     
     triggerFrameworkUpdates(element) {

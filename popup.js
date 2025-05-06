@@ -235,6 +235,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    
+
     function clearAccessToken() {
         return new Promise((resolve) => {
             chrome.storage.sync.remove(['cybervaultAccessToken', 'tokenSavedTimestamp'], () => {
