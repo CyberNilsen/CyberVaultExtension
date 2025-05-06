@@ -203,14 +203,89 @@ class CyberVaultAutofill {
         const id = (element.id || '').toLowerCase();
         const placeholder = (element.placeholder || '').toLowerCase();
         const classes = (element.className || '').toLowerCase();
+        const ariaLabel = (element.getAttribute('aria-label') || '').toLowerCase();
         
-        const searchTerms = ['search', 'query', 'find', 'filter', 'keyword'];
+        const searchTerms = [
+            'search', 'query', 'find', 'filter', 'keyword', 'keywords',
+            'lookup', 'browse', 'seek', 'hunt', 'explore', 'look',
+            'buscar', 'suche', 'chercher', 'cerca', 'zoek', 'søk',
+            'поиск', '搜索', '検索', 'sök', 'haku', 'ricerca',
+            'q', 'term', 'terms', 'words', 'key'
+        ];
         
         for (const term of searchTerms) {
-            if (name.includes(term) || id.includes(term) || placeholder.includes(term) || 
-                classes.includes(term)) {
+            if (name === term || id === term) return false;
+            
+            if (name.includes(term) || id.includes(term) || 
+                placeholder.includes(term) || classes.includes(term) || 
+                ariaLabel.includes(term)) {
                 return false;
             }
+        }
+        
+        const searchButtonIndicators = ['search', 'find', 'go', 'lookup', 'magnify', 'lens'];
+        const nearbyElements = this.getNearbyElements(element, 3);
+        
+        for (const nearElement of nearbyElements) {
+            
+            if (nearElement.tagName === 'BUTTON' || 
+                (nearElement.tagName === 'INPUT' && nearElement.type === 'submit') ||
+                nearElement.tagName === 'A' || 
+                nearElement.role === 'button') {
+                
+                const nearText = (nearElement.textContent || '').toLowerCase();
+                const nearValue = (nearElement.value || '').toLowerCase();
+                const nearId = (nearElement.id || '').toLowerCase();
+                const nearClass = (nearElement.className || '').toLowerCase();
+                
+                for (const term of searchButtonIndicators) {
+                    if (nearText.includes(term) || nearValue.includes(term) || 
+                        nearId.includes(term) || nearClass.includes(term)) {
+                        return false;
+                    }
+                }
+            }
+            
+            if ((nearElement.tagName === 'I' || nearElement.tagName === 'SPAN') && 
+                ((nearElement.className || '').includes('icon') || 
+                 (nearElement.className || '').includes('fa-search') ||
+                 (nearElement.className || '').includes('material-icons'))) {
+                return false;
+            }
+        }
+        
+        if (element.getAttribute('role') === 'search' || 
+            element.getAttribute('type') === 'search' ||
+            element.getAttribute('autocomplete') === 'off') {
+            return false;
+        }
+        
+        let parent = element.parentElement;
+        for (let i = 0; i < 5 && parent; i++) { 
+            const parentId = (parent.id || '').toLowerCase();
+            const parentClass = (parent.className || '').toLowerCase();
+            const parentAriaLabel = (parent.getAttribute('aria-label') || '').toLowerCase();
+            
+            for (const term of searchTerms) {
+                if (parentId.includes(term) || parentClass.includes(term) || 
+                    parentAriaLabel.includes(term)) {
+                    return false;
+                }
+            }
+            
+            const searchButtons = parent.querySelectorAll('button, input[type="submit"], [role="button"]');
+            for (const btn of searchButtons) {
+                const btnText = (btn.textContent || '').toLowerCase();
+                const btnValue = (btn.value || '').toLowerCase();
+                
+                for (const term of searchButtonIndicators) {
+                    if (btnText.includes(term) || btnValue.includes(term)) {
+                        return false;
+                    }
+                }
+            }
+            
+            parent = parent.parentElement;
         }
         
         if (type === 'email' || type === 'password') return true;
@@ -246,6 +321,37 @@ class CyberVaultAutofill {
         
         return false;
     }
+
+    getNearbyElements(element, radius) {
+        const results = [];
+        let current = element;
+        
+        for (let i = 0; i < radius && current.previousElementSibling; i++) {
+            current = current.previousElementSibling;
+            results.push(current);
+        }
+        
+        current = element;
+        
+        for (let i = 0; i < radius && current.nextElementSibling; i++) {
+            current = current.nextElementSibling;
+            results.push(current);
+        }
+        
+        const parent = element.parentElement;
+        if (parent) {
+            results.push(parent);
+            
+            Array.from(parent.children).forEach(child => {
+                if (child !== element && !results.includes(child)) {
+                    results.push(child);
+                }
+            });
+        }
+        
+        return results;
+    }
+    
 
     showAutofillOptions(field) {
         chrome.runtime.sendMessage(
