@@ -197,25 +197,37 @@ class CyberVaultAutofill {
 
     isLoginField(element) {
         if (!this.isInputField(element)) return false;
-
+        
         const type = element.type.toLowerCase();
         const name = (element.name || '').toLowerCase();
         const id = (element.id || '').toLowerCase();
         const placeholder = (element.placeholder || '').toLowerCase();
         const classes = (element.className || '').toLowerCase();
         
-        if (type === 'email' || type === 'password') return true;
+        const searchTerms = ['search', 'query', 'find', 'filter', 'keyword'];
         
-        const loginTerms = ['user', 'email', 'login', 'name', 'account', 'id', 'username'];
-        
-        for (const term of loginTerms) {
-            if (name.includes(term) || id.includes(term) || placeholder.includes(term) || classes.includes(term)) {
-                return true;
+        for (const term of searchTerms) {
+            if (name.includes(term) || id.includes(term) || placeholder.includes(term) || 
+                classes.includes(term)) {
+                return false;
             }
         }
         
+        if (type === 'email' || type === 'password') return true;
+        
+        const loginTerms = ['user', 'email', 'login', 'name', 'account', 'id', 'username', 'signin', 'sign-in'];
+        
         const form = this.findParentForm(element);
         if (form) {
+            const formId = (form.id || '').toLowerCase();
+            const formClasses = (form.className || '').toLowerCase();
+            
+            for (const term of loginTerms) {
+                if (formId.includes(term) || formClasses.includes(term)) {
+                    return true;
+                }
+            }
+            
             const inputs = Array.from(form.querySelectorAll('input'));
             const index = inputs.indexOf(element);
             if (index !== -1) {
@@ -223,6 +235,12 @@ class CyberVaultAutofill {
                 if (nextField && nextField.type === 'password') {
                     return true;
                 }
+            }
+        }
+        
+        for (const term of loginTerms) {
+            if (name.includes(term) || id.includes(term) || placeholder.includes(term) || classes.includes(term)) {
+                return true;
             }
         }
         
@@ -537,13 +555,7 @@ class CyberVaultAutofill {
     
     showAutofillSuccess() {
 
-        const form = this.findParentForm(this.currentField);
-        const elementToHighlight = form || this.currentField;
-        
-        elementToHighlight.classList.add('cybervault-autofill-success');
-        setTimeout(() => {
-            elementToHighlight.classList.remove('cybervault-autofill-success');
-        }, 1000);
+      
     }
 
     findParentForm(field) {
