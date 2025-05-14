@@ -5,8 +5,7 @@
     "description": "Secure password access for CyberVault",
     "permissions": [
         "storage",
-        "tabs",
-        "http://localhost/*"
+        "tabs"
     ],
     "host_permissions": [
         "<all_urls>"
