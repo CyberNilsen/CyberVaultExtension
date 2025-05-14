@@ -70,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             return response.ok;
         } catch (error) {
-            console.error("Token validation error:", error);
             return false;
         }
     }
@@ -229,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 showLoginContainer();
                 displayError('Failed to fetch passwords. Please try again.');
-                console.error('Error fetching passwords:', error);
             }
             passwordList.innerHTML = '';
         }

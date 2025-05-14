@@ -420,7 +420,6 @@ class CyberVaultAutofill {
             { type: 'GET_SAVED_PASSWORDS', url: window.location.href }, 
             (response) => {
                 if (chrome.runtime.lastError) {
-                    console.error("CyberVault Autofill (content script): Error getting passwords for current URL - ", chrome.runtime.lastError.message);
                     this.hidePopup();
                     
                     return;
@@ -437,7 +436,6 @@ class CyberVaultAutofill {
                         { type: 'GET_SAVED_PASSWORDS' },
                         (fullResponse) => {
                             if (chrome.runtime.lastError) {
-                                console.error("CyberVault Autofill (content script): Error getting all passwords - ", chrome.runtime.lastError.message);
                                 this.hidePopup();
                                 return;
                             }
@@ -458,7 +456,6 @@ class CyberVaultAutofill {
                                 if (matches.length) {
                                     this.renderPopup(matches, field);
                                 } else {
-                                    console.log('CyberVault: No saved passwords found for this site or related domains.');
                                     this.hidePopup(); 
                                 }
                             } else {
@@ -570,7 +567,6 @@ class CyberVaultAutofill {
             return hostname;
         } catch (e) {
 
-            console.warn("CyberVault: Could not parse URL for domain extraction:", url, e);
             const parts = url.split('/');
             return (parts.length > 0 && parts[0].includes('.')) ? parts[0].toLowerCase() : url.toLowerCase();
         }
@@ -805,7 +801,6 @@ class CyberVaultAutofill {
             
             return domain + path;
         } catch (e) {
-            console.warn("CyberVault: Could not normalize URL:", url, e);
             return url.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').split('?')[0].split('#')[0].replace(/\/$/, '');
         }
     }

@@ -41,7 +41,6 @@ async function validateToken(token) {
         
         return response.ok;
     } catch (error) {
-        console.error("Token validation error:", error);
         return false;
     }
 }
@@ -105,7 +104,6 @@ async function fetchPasswords(forceRefresh = false) {
         
         return passwords;
     } catch (error) {
-        console.error('Error fetching passwords:', error);
         
         passwordsCache.data = null;
         passwordsCache.timestamp = 0;
@@ -128,13 +126,11 @@ async function checkTokenValidity() {
         const isValid = await validateToken(token);
         
         if (!isValid) {
-            console.log('Token is no longer valid, clearing cache and stored token');
             await clearStoredToken();
             passwordsCache.data = null;
             passwordsCache.timestamp = 0;
         }
     } catch (error) {
-        console.log('No token stored or error checking validity');
     }
 }
 
@@ -177,13 +173,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         
                         sendResponse({ success: true, passwords: matchedPasswords });
                     } catch (error) {
-                        console.error('Error parsing URL:', error);
                         sendResponse({ success: false, error: 'Invalid URL' });
                     }
                 }
             })
             .catch(error => {
-                console.error('Error in GET_SAVED_PASSWORDS handler:', error);
                 sendResponse({ success: false, error: error.message });
             });
         
@@ -221,10 +215,8 @@ chrome.storage.onChanged.addListener((changes) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
-    console.log('CyberVault extension started');
     checkTokenValidity();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('CyberVault extension installed');
 });
