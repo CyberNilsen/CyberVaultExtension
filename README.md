@@ -54,20 +54,11 @@ A secure browser extension that integrates with the CyberVault password manager 
    - Browse and copy passwords as needed
    - Search through your stored credentials
 
-## Security
-
-- All communication between the extension and CyberVault application is encrypted
-- Tokens are stored securely using browser's secure storage APIs
-- No passwords are stored locally in the browser
-- All data remains in your CyberVault application
-
 ## Supported Browsers
 
 - Google Chrome (Manifest V3)
 - Microsoft Edge
 - Other Chromium-based browsers
-
-## Development
 
 ### Project Structure
 ```
