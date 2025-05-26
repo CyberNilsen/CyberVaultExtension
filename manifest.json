@@ -4,8 +4,7 @@
     "version": "3.0",
     "description": "Secure password access for CyberVault",
     "permissions": [
-        "storage",
-        "tabs"
+        "storage"
     ],
     "host_permissions": [
         "<all_urls>"
@@ -33,6 +32,4 @@
         "48": "images/icon48.png",
         "128": "images/icon128.png"
     }
-  }
-  
-   
+}
