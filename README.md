@@ -94,6 +94,7 @@ Contributions are welcome! Please feel free to submit issues, feature requests, 
 
 ## License
 
+[License](https://github.com/CyberNilsen/CyberVaultExtension/blob/master/LICENSE)
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Support
@@ -104,8 +105,5 @@ For support, please:
 3. Contact the development team
 
 ---
-
-[License](https://github.com/CyberNilsen/CyberVaultExtension/blob/master/LICENSE)
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 **Note:** This extension requires the CyberVault desktop application to function. Make sure you have it installed and configured before using this extension.
