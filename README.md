@@ -31,9 +31,7 @@ A secure browser extension that integrates with the CyberVault password manager 
 
 1. **Generate Token in CyberVault**
    - Open your CyberVault desktop application
-   - Navigate to Settings > Extensions
-   - Generate a new authentication token
-   - Copy the token for use in the browser extension
+   - Navigate to CyberVault Dashboard *(main page)* -> Copy extension key/token 
 
 2. **Configure Extension**
    - Click the CyberVault Extension icon in your browser toolbar
