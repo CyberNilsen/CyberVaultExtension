@@ -92,10 +92,9 @@ Contributions are welcome! Please feel free to submit issues, feature requests, 
 - [**CyberVault**](https://github.com/CyberNilsen/CyberVault) - Main password manager application
 - [**CyberVault Website**](https://github.com/CyberNilsen/CyberVault-website) - Official project website
 
-## License
+## 📜 License
 
-[License](https://github.com/CyberNilsen/CyberVaultExtension/blob/master/LICENSE)
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the [MIT License](LICENSE).
 
 ## Support
 
