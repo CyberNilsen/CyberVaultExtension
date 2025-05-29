@@ -18,8 +18,7 @@ A secure browser extension that integrates with the CyberVault password manager 
 ## Installation
 
 ### From Chrome Web Store
-*Coming soon - Extension is currently under review*
-
+[Chrome extension](https://chromewebstore.google.com/detail/cybervault-extension/apoijcgjdomcddnogcfjecfbgnnnhmdd?authuser=3&hl=en)
 ### Manual Installation (Developer Mode)
 1. Download or clone this repository
 2. Open Chrome and navigate to `chrome://extensions/`
