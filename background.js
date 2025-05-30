@@ -4,6 +4,13 @@ let passwordsCache = {
     expiryTime: 5 * 60 * 1000
 };
 
+let isValidating = false;
+let validationInterval;
+let consecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
+const VALIDATION_INTERVAL = 10000;
+const TOKEN_EXPIRY_TIME = 24 * 60 * 60 * 1000;
+
 function getAccessToken() {
     return new Promise((resolve, reject) => {
         chrome.storage.sync.get(['cybervaultAccessToken'], (result) => {
@@ -16,9 +23,48 @@ function getAccessToken() {
     });
 }
 
-async function validateToken(token) {
-    try {
+function getTokenTimestamp() {
+    return new Promise((resolve) => {
+        chrome.storage.sync.get(['tokenSavedTimestamp'], (result) => {
+            resolve(result.tokenSavedTimestamp || 0);
+        });
+    });
+}
 
+async function isTokenExpired() {
+    const timestamp = await getTokenTimestamp();
+    if (!timestamp) return true;
+    
+    const now = Date.now();
+    return (now - timestamp) > TOKEN_EXPIRY_TIME;
+}
+
+async function validateToken(token) {
+    if (isValidating) {
+        return new Promise((resolve) => {
+            const checkInterval = setInterval(() => {
+                if (!isValidating) {
+                    clearInterval(checkInterval);
+                    validateTokenInternal(token).then(resolve);
+                }
+            }, 100);
+        });
+    }
+    
+    return validateTokenInternal(token);
+}
+
+async function validateTokenInternal(token) {
+    if (!token) return false;
+    
+    if (await isTokenExpired()) {
+        console.log('Token expired by time, clearing storage');
+        await clearStoredToken();
+        return false;
+    }
+    
+    isValidating = true;
+    try {
         let response;
         try {
             response = await fetch('http://localhost:8765/validate', {
@@ -26,22 +72,49 @@ async function validateToken(token) {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 },
-                signal: AbortSignal.timeout(2000)
+                signal: AbortSignal.timeout(3000)
             });
         } catch (error) {
-            
             response = await fetch('http://localhost:8766/validate', {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`
                 },
-                signal: AbortSignal.timeout(2000)
+                signal: AbortSignal.timeout(3000)
             });
         }
         
-        return response.ok;
+        const isValid = response.ok;
+        
+        if (isValid) {
+            consecutiveFailures = 0;
+        } else {
+            consecutiveFailures++;
+            console.log(`Token validation failed. Consecutive failures: ${consecutiveFailures}`);
+            
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                console.log('Max consecutive failures reached, clearing storage');
+                await clearStoredToken();
+                clearPasswordsCache();
+                consecutiveFailures = 0;
+            }
+        }
+        
+        return isValid;
     } catch (error) {
+        consecutiveFailures++;
+        console.log(`Token validation error: ${error.message}. Consecutive failures: ${consecutiveFailures}`);
+        
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            console.log('Max consecutive failures reached due to errors, clearing storage');
+            await clearStoredToken();
+            clearPasswordsCache();
+            consecutiveFailures = 0;
+        }
+        
         return false;
+    } finally {
+        isValidating = false;
     }
 }
 
@@ -58,16 +131,14 @@ async function fetchPasswords(forceRefresh = false) {
         
         const isTokenValid = await validateToken(token);
         if (!isTokenValid) {
-
             await clearStoredToken();
-            passwordsCache.data = null;
-            passwordsCache.timestamp = 0;
+            clearPasswordsCache();
             throw new Error('Invalid access token');
         }
         
         let response;
         let controller = new AbortController();
-        let timeoutId = setTimeout(() => controller.abort(), 5000);
+        let timeoutId = setTimeout(() => controller.abort(), 8000);
         
         try {
             response = await fetch('http://localhost:8765/passwords', {
@@ -78,9 +149,8 @@ async function fetchPasswords(forceRefresh = false) {
                 signal: controller.signal
             });
         } catch (error) {
-
             controller = new AbortController();
-            timeoutId = setTimeout(() => controller.abort(), 5000);
+            timeoutId = setTimeout(() => controller.abort(), 8000);
             
             response = await fetch('http://localhost:8766/passwords', {
                 method: 'GET',
@@ -94,6 +164,13 @@ async function fetchPasswords(forceRefresh = false) {
         clearTimeout(timeoutId);
         
         if (!response.ok) {
+
+            consecutiveFailures++;
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                await clearStoredToken();
+                clearPasswordsCache();
+                consecutiveFailures = 0;
+            }
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
         
@@ -101,20 +178,24 @@ async function fetchPasswords(forceRefresh = false) {
         
         passwordsCache.data = passwords;
         passwordsCache.timestamp = now;
+        consecutiveFailures = 0;
         
         return passwords;
     } catch (error) {
-        
-        passwordsCache.data = null;
-        passwordsCache.timestamp = 0;
-        
+        clearPasswordsCache();
         throw error;
     }
+}
+
+function clearPasswordsCache() {
+    passwordsCache.data = null;
+    passwordsCache.timestamp = 0;
 }
 
 function clearStoredToken() {
     return new Promise((resolve) => {
         chrome.storage.sync.remove(['cybervaultAccessToken', 'tokenSavedTimestamp'], () => {
+            console.log('Cleared stored token and timestamp');
             resolve();
         });
     });
@@ -127,14 +208,93 @@ async function checkTokenValidity() {
         
         if (!isValid) {
             await clearStoredToken();
-            passwordsCache.data = null;
-            passwordsCache.timestamp = 0;
+            clearPasswordsCache();
+
+            chrome.runtime.sendMessage({
+                type: 'TOKEN_INVALIDATED'
+            }).catch(() => {}); 
         }
     } catch (error) {
+
     }
 }
 
-setInterval(checkTokenValidity, 3000);
+async function checkApplicationStatus() {
+    try {
+
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(), 1000);
+        
+        try {
+            await fetch('http://localhost:8765/validate', {
+                method: 'HEAD',
+                signal: controller.signal
+            });
+            return true;
+        } catch {
+            try {
+                await fetch('http://localhost:8766/validate', {
+                    method: 'HEAD',
+                    signal: controller.signal
+                });
+                return true;
+            } catch {
+                return false;
+            }
+        }
+    } catch {
+        return false;
+    }
+}
+
+async function enhancedTokenCheck() {
+    try {
+        const token = await getAccessToken();
+        if (!token) return;
+        
+        const appRunning = await checkApplicationStatus();
+        if (!appRunning) {
+            consecutiveFailures++;
+            console.log(`CyberVault app not running. Consecutive failures: ${consecutiveFailures}`);
+            
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                console.log('CyberVault app not running for too long, clearing storage');
+                await clearStoredToken();
+                clearPasswordsCache();
+                consecutiveFailures = 0;
+                chrome.runtime.sendMessage({
+                    type: 'TOKEN_INVALIDATED'
+                }).catch(() => {});
+            }
+            return;
+        }
+        
+        const isValid = await validateToken(token);
+        if (!isValid) {
+            await clearStoredToken();
+            clearPasswordsCache();
+            chrome.runtime.sendMessage({
+                type: 'TOKEN_INVALIDATED'
+            }).catch(() => {});
+        }
+    } catch (error) {
+        console.error('Enhanced token check error:', error);
+    }
+}
+
+function startValidationInterval() {
+    if (validationInterval) {
+        clearInterval(validationInterval);
+    }
+    validationInterval = setInterval(enhancedTokenCheck, VALIDATION_INTERVAL);
+}
+
+function stopValidationInterval() {
+    if (validationInterval) {
+        clearInterval(validationInterval);
+        validationInterval = null;
+    }
+}
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.type === 'GET_SAVED_PASSWORDS') {
@@ -144,7 +304,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     try {
                         const currentUrl = new URL(request.url);
                         const currentDomain = currentUrl.hostname.toLowerCase();
-                        const currentPath = currentUrl.pathname.toLowerCase();
                         
                         const matchedPasswords = passwords.filter(password => {
                             if (!password.Website) return false;
@@ -165,7 +324,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 
                                 return domainMatch;
                             } catch {
-
                                 return currentDomain.includes(password.Website.toLowerCase()) || 
                                        password.Website.toLowerCase().includes(currentDomain);
                             }
@@ -175,6 +333,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     } catch (error) {
                         sendResponse({ success: false, error: 'Invalid URL' });
                     }
+                } else {
+                    sendResponse({ success: true, passwords: passwords });
                 }
             })
             .catch(error => {
@@ -185,8 +345,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     
     if (request.type === 'CLEAR_CACHE') {
-        passwordsCache.data = null;
-        passwordsCache.timestamp = 0;
+        clearPasswordsCache();
         sendResponse({ success: true });
         return false;
     }
@@ -197,6 +356,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             .then(isValid => {
                 if (!isValid) {
                     clearStoredToken();
+                    clearPasswordsCache();
                 }
                 sendResponse({ success: true, valid: isValid });
             })
@@ -205,18 +365,51 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             });
         return true;
     }
+    
+    if (request.type === 'NEW_TOKEN_SAVED') {
+        clearPasswordsCache();
+        consecutiveFailures = 0;
+        stopValidationInterval();
+        startValidationInterval();
+        sendResponse({ success: true });
+        return false;
+    }
+    
+    if (request.type === 'CLEAR_STORAGE') {
+        clearStoredToken().then(() => {
+            clearPasswordsCache();
+            consecutiveFailures = 0;
+            sendResponse({ success: true });
+        });
+        return true;
+    }
 });
 
 chrome.storage.onChanged.addListener((changes) => {
     if (changes.cybervaultAccessToken) {
-        passwordsCache.data = null;
-        passwordsCache.timestamp = 0;
+        clearPasswordsCache();
+        isValidating = false;
+        consecutiveFailures = 0;
+        
+        if (changes.cybervaultAccessToken.newValue) {
+            stopValidationInterval();
+            startValidationInterval();
+        } else {
+            stopValidationInterval();
+        }
     }
 });
 
 chrome.runtime.onStartup.addListener(() => {
-    checkTokenValidity();
+    enhancedTokenCheck();
+    startValidationInterval();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
+    startValidationInterval();
+});
+
+chrome.runtime.onSuspend.addListener(() => {
+    console.log('Extension suspending, performing cleanup');
+    stopValidationInterval();
 });
