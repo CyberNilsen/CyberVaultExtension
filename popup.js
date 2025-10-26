@@ -37,6 +37,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const selfHostedBtn = document.getElementById("selfHostedBtn");
+    const backBtn = document.getElementById("backBtn");
+    const normalLogin = document.getElementById("normalLogin");
+    const selfHostedFields = document.getElementById("selfHostedFields");
+
+    // Switch to self-hosted mode
+    selfHostedBtn.addEventListener("click", () => {
+        normalLogin.style.display = "none";
+        selfHostedFields.style.display = "block";
+    });
+
+    // Go back to normal mode
+    backBtn.addEventListener("click", () => {
+        selfHostedFields.style.display = "none";
+        normalLogin.style.display = "block";
+    });
+
     function getAccessToken() {
         return new Promise((resolve) => {
             chrome.storage.sync.get(['cybervaultAccessToken'], (result) => {

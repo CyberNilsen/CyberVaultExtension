@@ -92,6 +92,25 @@
         .btn:active {
             transform: translateY(1px);
         }
+
+        #selfHostedFields input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background-color: #FFFFFF;
+            border: 1px solid #E0E0E0;
+            border-radius: 8px;
+            color: #333;
+            font-size: 14px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            transition: border-color 0.2s ease;
+        }
+
+        #selfHostedFields input:focus {
+            border-color: #2E3440;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(94, 129, 172, 0.2);
+        }
         
         .search-container {
             padding: 12px 16px;
@@ -263,8 +282,52 @@
     </div>
 
     <div class="login-container container">
+
+    <!-- Normal connection UI -->
+    <div id="normalLogin">
         <input type="text" id="accessKeyInput" placeholder="Enter Web Extension Key">
         <button id="connectBtn" class="btn">Connect to CyberVault</button>
+        <button id="selfHostedBtn" class="btn" style="margin-top: 10px; background-color: #4C566A;">
+            Self-hosted
+        </button>
+        <div id="errorMessage"></div>
+    </div>
+
+    <!-- Self-hosted connection UI -->
+    <div id="selfHostedFields" style="display: none;">
+        <input 
+            type="text" 
+            id="serverUrlInput" 
+            placeholder="Server URL (e.g., https://vault.example.com)"
+        >
+        <input 
+            type="text" 
+            id="usernameInput" 
+            placeholder="Username"
+        >
+        <input 
+            type="password" 
+            id="passwordInput" 
+            placeholder="Password"
+        >
+        <button 
+            id="connectSelfHostedBtn" 
+            class="btn" 
+            style="background-color: #4C566A;"
+        >
+            Connect to Server
+        </button>
+        <button 
+            id="backBtn" 
+            class="btn" 
+            style="margin-top: 10px; background-color: #D08770;"
+        >
+            Back
+        </button>
+        <div id="errorMessage"></div>
+    </div>
+
+</div>
         <div id="errorMessage"></div>
     </div>
 
